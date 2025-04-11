@@ -51,8 +51,8 @@ def create_map(df):
 df = load_data()
 
 # Title
-st.title("London Pubs Map 🍻")
-st.markdown("An interactive map displaying selected pubs in London.")
+st.title("Geezer Pubs of London 🍻")
+st.markdown("Fosters, Darts, Pool.")
 
 # Create map if it does not exist in session state
 if 'map' not in st.session_state:
@@ -60,10 +60,6 @@ if 'map' not in st.session_state:
 
 # Display the existing map with new markers (not recreated)
 folium_static(st.session_state.map)
-
-# Show the data table if the checkbox is checked
-if st.checkbox("Show Data Table"):
-    st.dataframe(df)
 
 # Add a section to submit a new pub
 st.header("Submit a New Pub")
