@@ -3,3 +3,4 @@ sqlalchemy
 pandas
 folium
 streamlit-folium
+geopy
