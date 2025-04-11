@@ -1,0 +1,19 @@
+version: "3.8"
+services:
+  local-dev:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    command: ["streamlit", "run", "app.py", "--server.headless=true", "--server.port=8501", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]
+
+  app:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    command: ["streamlit", "run", "app.py"]
