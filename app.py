@@ -94,7 +94,6 @@ def create_main_map(df, preview_data=None, center=None):
 
     return m
 
-
 # --------------------------------------------------
 # Streamlit App Setup & Session State Initialization
 # --------------------------------------------------
@@ -102,7 +101,7 @@ st.set_page_config(page_title="Geezer Pubs of London 🍻", page_icon="🍻", la
 st.title("Actual Pubs")
 st.write("YOU'RE JUST A BAR IN DISGUISE, BAR IN DISGUIIIISEEE")
 
-# Initialize session state for preview data and confirmed pubs.
+# Initialize session state for preview data, confirmed pubs, and new pub center.
 if "preview_lat" not in st.session_state:
     st.session_state["preview_lat"] = None
 if "preview_lon" not in st.session_state:
@@ -111,6 +110,8 @@ if "preview_text" not in st.session_state:
     st.session_state["preview_text"] = None
 if "df_pubs" not in st.session_state:
     st.session_state["df_pubs"] = load_data()
+if "new_pub_center" not in st.session_state:
+    st.session_state["new_pub_center"] = None
 
 # --------------------------------------------------
 # Build and Show the Main Map (Only Once)
@@ -120,13 +121,20 @@ def build_and_show_map():
     center = None
     preview_data = None
 
-    if st.session_state["preview_lat"] and st.session_state["preview_lon"]:
+    # If a new pub was just added, center on that pub.
+    if st.session_state.get("new_pub_center"):
+        center = st.session_state["new_pub_center"]
+        # Clear it once used so that subsequent map builds use the default flow.
+        st.session_state.pop("new_pub_center")
+    # If there is still a preview, center on that preview.
+    elif st.session_state["preview_lat"] and st.session_state["preview_lon"]:
         center = [st.session_state["preview_lat"], st.session_state["preview_lon"]]
         preview_data = (
             st.session_state["preview_lat"],
             st.session_state["preview_lon"],
             st.session_state["preview_text"],
         )
+    # Otherwise, center on the last confirmed pub.
     elif not st.session_state["df_pubs"].empty:
         last_pub = st.session_state["df_pubs"].iloc[-1]
         center = [last_pub["latitude"], last_pub["longitude"]]
@@ -168,6 +176,8 @@ with st.sidebar.form(key="add_pub_form"):
 
     if submit_button:
         if st.session_state["preview_lat"] is not None and st.session_state["preview_lon"] is not None and st.session_state["preview_text"]:
+            # Set the new pub center so that the map recenters on this pub.
+            st.session_state["new_pub_center"] = [st.session_state["preview_lat"], st.session_state["preview_lon"]]
             add_pub_to_db(
                 st.session_state["preview_text"],
                 st.session_state["preview_lat"],
@@ -186,7 +196,7 @@ with st.sidebar.form(key="add_pub_form"):
             st.session_state["preview_text"] = None
             # Update confirmed pubs from the database.
             st.session_state["df_pubs"] = load_data()
-            # Rerun the app to reset form inputs
+            # Rerun the app to reset form inputs and update the map
             st.rerun()
         else:
             st.sidebar.error("Please select an address first.")
