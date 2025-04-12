@@ -41,6 +41,15 @@ def search_addresses(query):
         return [(r.address, r.latitude, r.longitude) for r in results]
     return []
 
+def parse_pub_name_from_address(full_address):
+    """
+    Return just the portion of the address before the first comma.
+    If there's no comma, return the full address.
+    """
+    if "," in full_address:
+        return full_address.split(",")[0].strip()
+    return full_address.strip()
+
 # --------------------------------------------------
 # Map Utility Functions
 # --------------------------------------------------
@@ -100,18 +109,20 @@ st.set_page_config(page_title="Geezer Pubs of London 🍻", page_icon="🍻", la
 st.title("Actual Pubs")
 st.write("YOU'RE JUST A BAR IN DISGUISE, BAR IN DISGUIIIISEEE")
 
-# Initialize session state for preview data, confirmed pubs, new pub center, and confirmed address.
+# Initialize session state variables
 if "preview_lat" not in st.session_state:
     st.session_state["preview_lat"] = None
 if "preview_lon" not in st.session_state:
     st.session_state["preview_lon"] = None
-if "preview_text" not in st.session_state:
+if "preview_text" not in st.session_state:   # full address
     st.session_state["preview_text"] = None
+if "suggested_pub_name" not in st.session_state:
+    st.session_state["suggested_pub_name"] = None
 if "df_pubs" not in st.session_state:
     st.session_state["df_pubs"] = load_data()
 if "new_pub_center" not in st.session_state:
     st.session_state["new_pub_center"] = None
-if "confirmed_address" not in st.session_state:
+if "confirmed_address" not in st.session_state:  # will store just the suggested pub name
     st.session_state["confirmed_address"] = None
 
 # --------------------------------------------------
@@ -132,14 +143,18 @@ def build_and_show_map():
         preview_data = (
             st.session_state["preview_lat"],
             st.session_state["preview_lon"],
-            st.session_state["preview_text"],
+            st.session_state["preview_text"],  # full address in preview
         )
     # Otherwise, center on the last confirmed pub.
     elif not st.session_state["df_pubs"].empty:
         last_pub = st.session_state["df_pubs"].iloc[-1]
         center = [last_pub["latitude"], last_pub["longitude"]]
 
-    the_map = create_main_map(st.session_state["df_pubs"], preview_data=preview_data, center=center)
+    the_map = create_main_map(
+        st.session_state["df_pubs"], 
+        preview_data=preview_data, 
+        center=center
+    )
     folium_static(the_map)
 
 # --------------------------------------------------
@@ -147,7 +162,10 @@ def build_and_show_map():
 # --------------------------------------------------
 st.sidebar.header("Step 1: Search and Confirm Address")
 
-address_query = st.sidebar.text_input("Search for an Address", placeholder="e.g., The Volunteer, Tottenham")
+address_query = st.sidebar.text_input(
+    "Search Address",
+    placeholder="e.g., The Volunteer, Tottenham"
+)
 
 if address_query:
     suggestions = search_addresses(address_query)
@@ -159,35 +177,56 @@ if address_query:
             if address == selected_address:
                 st.session_state["preview_lat"] = lat
                 st.session_state["preview_lon"] = lon
-                st.session_state["preview_text"] = selected_address
+                st.session_state["preview_text"] = address  # full address
+                # Suggest pub name from just the first part of the address
+                st.session_state["suggested_pub_name"] = parse_pub_name_from_address(address)
                 break
     else:
         st.sidebar.warning("No matching addresses found.")
 
 if st.sidebar.button("Confirm Address"):
     if st.session_state.get("preview_text"):
-        st.session_state["confirmed_address"] = st.session_state["preview_text"]
-        st.sidebar.success(f"Address confirmed: {st.session_state['confirmed_address']}")
+        # Save the suggested pub name as the "confirmed address" (which is actually just a pub name)
+        st.session_state["confirmed_address"] = st.session_state["suggested_pub_name"]
+        st.sidebar.success(f"Address confirmed for: {st.session_state['confirmed_address']}")
     else:
         st.sidebar.error("Please select an address before confirming.")
 
 # --------------------------------------------------
-# Sidebar: Step 2 - Add Pub Details (Shown after Address is Confirmed)
+# Sidebar: Step 2 - Add Pub Details
 # --------------------------------------------------
 if st.session_state.get("confirmed_address"):
     st.sidebar.header("Step 2: Add Pub Details")
-    pub_name = st.sidebar.text_input("Pub Name (edit if necessary)", value=st.session_state["confirmed_address"])
+    pub_name = st.sidebar.text_input(
+        "Pub Name (edit if necessary)",
+        value=st.session_state["confirmed_address"]
+    )
     pool_table = st.sidebar.radio("Pool Table", ("Yes", "No"), index=1)
     darts = st.sidebar.radio("Darts", ("Yes", "No"), index=1)
-    commentary = st.sidebar.radio("Commentary", ("They get it", "Occasional", "Muted with Shit music on"), index=0)
+    commentary = st.sidebar.radio(
+        "Commentary",
+        ("They get it", "Occasional", "Muted with Shit music on"),
+        index=0
+    )
     fosters_carling = st.sidebar.radio("Fosters / Carling", ("Yes", "No"), index=1)
-    pint_price = st.sidebar.number_input("Price of a Pint", value=5.00, min_value=0.0, step=0.01, format="%.2f")
+    pint_price = st.sidebar.number_input(
+        "Price of a Pint",
+        value=5.00,
+        min_value=0.0,
+        step=0.01,
+        format="%.2f"
+    )
     lock_ins = st.sidebar.radio("Lock-ins", ("Yes", "No"), index=1)
     
     if st.sidebar.button("Add Pub"):
-        if st.session_state["preview_lat"] is not None and st.session_state["preview_lon"] is not None and pub_name:
-            # Center the map on the new pub.
-            st.session_state["new_pub_center"] = [st.session_state["preview_lat"], st.session_state["preview_lon"]]
+        # We rely on st.session_state["preview_lat"] and st.session_state["preview_lon"] for coordinates.
+        if (st.session_state["preview_lat"] is not None 
+            and st.session_state["preview_lon"] is not None 
+            and pub_name):
+            st.session_state["new_pub_center"] = [
+                st.session_state["preview_lat"], 
+                st.session_state["preview_lon"]
+            ]
             add_pub_to_db(
                 pub_name,
                 st.session_state["preview_lat"],
@@ -200,20 +239,22 @@ if st.session_state.get("confirmed_address"):
                 lock_ins,
             )
             st.sidebar.success(f"Pub added: {pub_name}")
-            # Clear preview and confirmed address data.
+            # Clear everything so the UI resets
             st.session_state["preview_lat"] = None
             st.session_state["preview_lon"] = None
             st.session_state["preview_text"] = None
+            st.session_state["suggested_pub_name"] = None
             st.session_state["confirmed_address"] = None
             st.session_state["df_pubs"] = load_data()
             st.rerun()
         else:
-            st.sidebar.error("Error adding pub. Please ensure all necessary information is provided.")
+            st.sidebar.error("Error adding pub. Please ensure all necessary info is provided.")
     
     if st.sidebar.button("Clear Preview"):
         st.session_state["preview_lat"] = None
         st.session_state["preview_lon"] = None
         st.session_state["preview_text"] = None
+        st.session_state["suggested_pub_name"] = None
         st.session_state["confirmed_address"] = None
         st.sidebar.info("Preview cleared.")
 
