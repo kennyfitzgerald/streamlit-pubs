@@ -62,13 +62,19 @@ def create_main_map(df, preview_data=None, center=None):
 
     # Add markers for confirmed pubs
     for _, row in df.iterrows():
+        # Safely convert pint_price to a float; if conversion fails, default to 0.0
+        try:
+            pint_price_val = float(row['pint_price'])
+        except (ValueError, TypeError):
+            pint_price_val = 0.0
+
         popup_text = f"""
         <b>{row['name']}</b><br>
         Pool Table: {row['pool_table']}<br>
         Darts: {row['darts']}<br>
         Commentary: {row['commentary']}<br>
         Fosters/Carling: {row['fosters_carling']}<br>
-        Price of a Pint: {row['pint_price']}<br>
+        Price of a Pint: {pint_price_val:.2f}<br>
         Lock-ins: {row['lock_ins']}
         """
         folium.Marker(
@@ -88,12 +94,13 @@ def create_main_map(df, preview_data=None, center=None):
 
     return m
 
+
 # --------------------------------------------------
 # Streamlit App Setup & Session State Initialization
 # --------------------------------------------------
 st.set_page_config(page_title="Geezer Pubs of London 🍻", page_icon="🍻", layout="wide")
-st.title("Geezer Pubs of London 🍻")
-st.write("Explore the best pubs in London and easily add your favorites!")
+st.title("Actual Pubs")
+st.write("YOU'RE JUST A BAR IN DISGUISE, BAR IN DISGUIIIISEEE")
 
 # Initialize session state for preview data and confirmed pubs.
 if "preview_lat" not in st.session_state:
@@ -132,7 +139,6 @@ def build_and_show_map():
 # --------------------------------------------------
 st.sidebar.header("Add a New Pub")
 
-# Auto-search: as the user types and presses Enter, the script reruns
 address_query = st.sidebar.text_input("Search for an Address", placeholder="e.g., The Volunteer, Tottenham")
 
 if address_query:
@@ -147,40 +153,43 @@ if address_query:
                 st.session_state["preview_lon"] = lon
                 st.session_state["preview_text"] = selected_address
                 break
-
-        # Replace the overall rating slider with individual feature options
-        pool_table = st.sidebar.radio("Pool Table", ("Yes", "No"))
-        darts = st.sidebar.radio("Darts", ("Yes", "No"))
-        commentary = st.sidebar.radio("Commentary", ("They get it", "Occasional", "Muted with Shit music on"))
-        fosters_carling = st.sidebar.radio("Fosters / Carling", ("Yes", "No"))
-        pint_price = st.sidebar.radio("Price of a Pint", ("Yes", "No"))
-        lock_ins = st.sidebar.radio("Lock-ins", ("Yes", "No"))
-
-        # Confirm addition of the pub
-        if st.sidebar.button("Add Pub"):
-            if (st.session_state["preview_lat"] is not None and
-                    st.session_state["preview_lon"] is not None and
-                    st.session_state["preview_text"]):
-                add_pub_to_db(
-                    st.session_state["preview_text"],
-                    st.session_state["preview_lat"],
-                    st.session_state["preview_lon"],
-                    pool_table,
-                    darts,
-                    commentary,
-                    fosters_carling,
-                    pint_price,
-                    lock_ins,
-                )
-                st.sidebar.success(f"Pub added: {st.session_state['preview_text']}")
-                # Clear the preview data.
-                st.session_state["preview_lat"] = None
-                st.session_state["preview_lon"] = None
-                st.session_state["preview_text"] = None
-                # Update confirmed pubs from the database.
-                st.session_state["df_pubs"] = load_data()
     else:
         st.sidebar.warning("No matching addresses found.")
+
+# Wrap the pub details in a form
+with st.sidebar.form(key="add_pub_form"):
+    pool_table = st.radio("Pool Table", ("Yes", "No"), index=1)
+    darts = st.radio("Darts", ("Yes", "No"), index=1)
+    commentary = st.radio("Commentary", ("They get it", "Occasional", "Muted with Shit music on"), index=0)
+    fosters_carling = st.radio("Fosters / Carling", ("Yes", "No"), index=1)
+    pint_price = st.number_input("Price of a Pint", value=5.00, min_value=0.0, step=0.01, format="%.2f")
+    lock_ins = st.radio("Lock-ins", ("Yes", "No"), index=1)
+    submit_button = st.form_submit_button("Add Pub")
+
+    if submit_button:
+        if st.session_state["preview_lat"] is not None and st.session_state["preview_lon"] is not None and st.session_state["preview_text"]:
+            add_pub_to_db(
+                st.session_state["preview_text"],
+                st.session_state["preview_lat"],
+                st.session_state["preview_lon"],
+                pool_table,
+                darts,
+                commentary,
+                fosters_carling,
+                pint_price,
+                lock_ins,
+            )
+            st.sidebar.success(f"Pub added: {st.session_state['preview_text']}")
+            # Clear the preview data from session state to reset the form
+            st.session_state["preview_lat"] = None
+            st.session_state["preview_lon"] = None
+            st.session_state["preview_text"] = None
+            # Update confirmed pubs from the database.
+            st.session_state["df_pubs"] = load_data()
+            # Rerun the app to reset form inputs
+            st.rerun()
+        else:
+            st.sidebar.error("Please select an address first.")
 
 if st.sidebar.button("Clear Preview"):
     st.session_state["preview_lat"] = None
