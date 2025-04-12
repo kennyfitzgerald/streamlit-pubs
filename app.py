@@ -13,18 +13,21 @@ from geopy.geocoders import Nominatim
 def load_data():
     """Fetch all pubs from geezers.db into a DataFrame."""
     conn = sqlite3.connect('geezers.db')
-    query = "SELECT name, latitude, longitude, rating FROM pubs"
+    query = """
+    SELECT name, latitude, longitude, pool_table, darts, commentary, fosters_carling, pint_price, lock_ins 
+    FROM pubs
+    """
     df = pd.read_sql(query, conn)
     conn.close()
     return df
 
-def add_pub_to_db(name, latitude, longitude, rating):
+def add_pub_to_db(name, latitude, longitude, pool_table, darts, commentary, fosters_carling, pint_price, lock_ins):
     """Insert a new pub record into the database."""
     conn = sqlite3.connect('geezers.db')
     c = conn.cursor()
     c.execute(
-        "INSERT INTO pubs (name, latitude, longitude, rating) VALUES (?, ?, ?, ?)",
-        (name, latitude, longitude, rating)
+        "INSERT INTO pubs (name, latitude, longitude, pool_table, darts, commentary, fosters_carling, pint_price, lock_ins) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (name, latitude, longitude, pool_table, darts, commentary, fosters_carling, pint_price, lock_ins)
     )
     conn.commit()
     conn.close()
@@ -59,9 +62,18 @@ def create_main_map(df, preview_data=None, center=None):
 
     # Add markers for confirmed pubs
     for _, row in df.iterrows():
+        popup_text = f"""
+        <b>{row['name']}</b><br>
+        Pool Table: {row['pool_table']}<br>
+        Darts: {row['darts']}<br>
+        Commentary: {row['commentary']}<br>
+        Fosters/Carling: {row['fosters_carling']}<br>
+        Price of a Pint: {row['pint_price']}<br>
+        Lock-ins: {row['lock_ins']}
+        """
         folium.Marker(
             location=[row["latitude"], row["longitude"]],
-            popup=f"{row['name']} - Rating: {row['rating']}",
+            popup=popup_text,
             icon=get_main_icon(),
         ).add_to(m)
 
@@ -83,15 +95,13 @@ st.set_page_config(page_title="Geezer Pubs of London 🍻", page_icon="🍻", la
 st.title("Geezer Pubs of London 🍻")
 st.write("Explore the best pubs in London and easily add your favorites!")
 
-# Use session state to store preview data and the list of confirmed pubs.
+# Initialize session state for preview data and confirmed pubs.
 if "preview_lat" not in st.session_state:
     st.session_state["preview_lat"] = None
 if "preview_lon" not in st.session_state:
     st.session_state["preview_lon"] = None
 if "preview_text" not in st.session_state:
     st.session_state["preview_text"] = None
-if "preview_rating" not in st.session_state:
-    st.session_state["preview_rating"] = 3.0
 if "df_pubs" not in st.session_state:
     st.session_state["df_pubs"] = load_data()
 
@@ -138,15 +148,15 @@ if address_query:
                 st.session_state["preview_text"] = selected_address
                 break
 
-        st.session_state["preview_rating"] = st.sidebar.slider(
-            "Rating",
-            min_value=1.0,
-            max_value=5.0,
-            value=st.session_state["preview_rating"],
-            step=0.5,
-        )
+        # Replace the overall rating slider with individual feature options
+        pool_table = st.sidebar.radio("Pool Table", ("Yes", "No"))
+        darts = st.sidebar.radio("Darts", ("Yes", "No"))
+        commentary = st.sidebar.radio("Commentary", ("They get it", "Occasional", "Muted with Shit music on"))
+        fosters_carling = st.sidebar.radio("Fosters / Carling", ("Yes", "No"))
+        pint_price = st.sidebar.radio("Price of a Pint", ("Yes", "No"))
+        lock_ins = st.sidebar.radio("Lock-ins", ("Yes", "No"))
 
-        # Confirm addition of the pub; no extra map call here.
+        # Confirm addition of the pub
         if st.sidebar.button("Add Pub"):
             if (st.session_state["preview_lat"] is not None and
                     st.session_state["preview_lon"] is not None and
@@ -155,7 +165,12 @@ if address_query:
                     st.session_state["preview_text"],
                     st.session_state["preview_lat"],
                     st.session_state["preview_lon"],
-                    st.session_state["preview_rating"],
+                    pool_table,
+                    darts,
+                    commentary,
+                    fosters_carling,
+                    pint_price,
+                    lock_ins,
                 )
                 st.sidebar.success(f"Pub added: {st.session_state['preview_text']}")
                 # Clear the preview data.
