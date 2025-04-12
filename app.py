@@ -56,13 +56,12 @@ def create_main_map(df, preview_data=None, center=None):
       - One optional preview marker if preview_data is provided.
     """
     if center is None:
-        center = [51.5074, -0.1278]
+        center = [51.5074, -0.1278]  # Default to central London
 
     m = folium.Map(location=center, zoom_start=11)
 
     # Add markers for confirmed pubs
     for _, row in df.iterrows():
-        # Safely convert pint_price to a float; if conversion fails, default to 0.0
         try:
             pint_price_val = float(row['pint_price'])
         except (ValueError, TypeError):
@@ -101,7 +100,7 @@ st.set_page_config(page_title="Geezer Pubs of London 🍻", page_icon="🍻", la
 st.title("Actual Pubs")
 st.write("YOU'RE JUST A BAR IN DISGUISE, BAR IN DISGUIIIISEEE")
 
-# Initialize session state for preview data, confirmed pubs, and new pub center.
+# Initialize session state for preview data, confirmed pubs, new pub center, and confirmed address.
 if "preview_lat" not in st.session_state:
     st.session_state["preview_lat"] = None
 if "preview_lon" not in st.session_state:
@@ -112,19 +111,20 @@ if "df_pubs" not in st.session_state:
     st.session_state["df_pubs"] = load_data()
 if "new_pub_center" not in st.session_state:
     st.session_state["new_pub_center"] = None
+if "confirmed_address" not in st.session_state:
+    st.session_state["confirmed_address"] = None
 
 # --------------------------------------------------
-# Build and Show the Main Map (Only Once)
+# Build and Show the Main Map
 # --------------------------------------------------
 def build_and_show_map():
-    """Build the main map (with a preview marker if set) and display it once."""
+    """Build the main map (with a preview marker if set) and display it."""
     center = None
     preview_data = None
 
     # If a new pub was just added, center on that pub.
     if st.session_state.get("new_pub_center"):
         center = st.session_state["new_pub_center"]
-        # Clear it once used so that subsequent map builds use the default flow.
         st.session_state.pop("new_pub_center")
     # If there is still a preview, center on that preview.
     elif st.session_state["preview_lat"] and st.session_state["preview_lon"]:
@@ -143,9 +143,9 @@ def build_and_show_map():
     folium_static(the_map)
 
 # --------------------------------------------------
-# Sidebar: Auto-Search and Adding a New Pub
+# Sidebar: Step 1 - Search and Confirm Address
 # --------------------------------------------------
-st.sidebar.header("Add a New Pub")
+st.sidebar.header("Step 1: Search and Confirm Address")
 
 address_query = st.sidebar.text_input("Search for an Address", placeholder="e.g., The Volunteer, Tottenham")
 
@@ -154,7 +154,7 @@ if address_query:
     if suggestions:
         addresses = [addr for (addr, lat, lon) in suggestions]
         selected_address = st.sidebar.selectbox("Select an Address", addresses)
-        # Retrieve lat/lon from suggestions and update preview session state.
+        # Update preview session state with the selected address.
         for address, lat, lon in suggestions:
             if address == selected_address:
                 st.session_state["preview_lat"] = lat
@@ -164,22 +164,32 @@ if address_query:
     else:
         st.sidebar.warning("No matching addresses found.")
 
-# Wrap the pub details in a form
-with st.sidebar.form(key="add_pub_form"):
-    pool_table = st.radio("Pool Table", ("Yes", "No"), index=1)
-    darts = st.radio("Darts", ("Yes", "No"), index=1)
-    commentary = st.radio("Commentary", ("They get it", "Occasional", "Muted with Shit music on"), index=0)
-    fosters_carling = st.radio("Fosters / Carling", ("Yes", "No"), index=1)
-    pint_price = st.number_input("Price of a Pint", value=5.00, min_value=0.0, step=0.01, format="%.2f")
-    lock_ins = st.radio("Lock-ins", ("Yes", "No"), index=1)
-    submit_button = st.form_submit_button("Add Pub")
+if st.sidebar.button("Confirm Address"):
+    if st.session_state.get("preview_text"):
+        st.session_state["confirmed_address"] = st.session_state["preview_text"]
+        st.sidebar.success(f"Address confirmed: {st.session_state['confirmed_address']}")
+    else:
+        st.sidebar.error("Please select an address before confirming.")
 
-    if submit_button:
-        if st.session_state["preview_lat"] is not None and st.session_state["preview_lon"] is not None and st.session_state["preview_text"]:
-            # Set the new pub center so that the map recenters on this pub.
+# --------------------------------------------------
+# Sidebar: Step 2 - Add Pub Details (Shown after Address is Confirmed)
+# --------------------------------------------------
+if st.session_state.get("confirmed_address"):
+    st.sidebar.header("Step 2: Add Pub Details")
+    pub_name = st.sidebar.text_input("Pub Name (edit if necessary)", value=st.session_state["confirmed_address"])
+    pool_table = st.sidebar.radio("Pool Table", ("Yes", "No"), index=1)
+    darts = st.sidebar.radio("Darts", ("Yes", "No"), index=1)
+    commentary = st.sidebar.radio("Commentary", ("They get it", "Occasional", "Muted with Shit music on"), index=0)
+    fosters_carling = st.sidebar.radio("Fosters / Carling", ("Yes", "No"), index=1)
+    pint_price = st.sidebar.number_input("Price of a Pint", value=5.00, min_value=0.0, step=0.01, format="%.2f")
+    lock_ins = st.sidebar.radio("Lock-ins", ("Yes", "No"), index=1)
+    
+    if st.sidebar.button("Add Pub"):
+        if st.session_state["preview_lat"] is not None and st.session_state["preview_lon"] is not None and pub_name:
+            # Center the map on the new pub.
             st.session_state["new_pub_center"] = [st.session_state["preview_lat"], st.session_state["preview_lon"]]
             add_pub_to_db(
-                st.session_state["preview_text"],
+                pub_name,
                 st.session_state["preview_lat"],
                 st.session_state["preview_lon"],
                 pool_table,
@@ -189,25 +199,25 @@ with st.sidebar.form(key="add_pub_form"):
                 pint_price,
                 lock_ins,
             )
-            st.sidebar.success(f"Pub added: {st.session_state['preview_text']}")
-            # Clear the preview data from session state to reset the form
+            st.sidebar.success(f"Pub added: {pub_name}")
+            # Clear preview and confirmed address data.
             st.session_state["preview_lat"] = None
             st.session_state["preview_lon"] = None
             st.session_state["preview_text"] = None
-            # Update confirmed pubs from the database.
+            st.session_state["confirmed_address"] = None
             st.session_state["df_pubs"] = load_data()
-            # Rerun the app to reset form inputs and update the map
             st.rerun()
         else:
-            st.sidebar.error("Please select an address first.")
-
-if st.sidebar.button("Clear Preview"):
-    st.session_state["preview_lat"] = None
-    st.session_state["preview_lon"] = None
-    st.session_state["preview_text"] = None
-    st.sidebar.info("Preview cleared.")
+            st.sidebar.error("Error adding pub. Please ensure all necessary information is provided.")
+    
+    if st.sidebar.button("Clear Preview"):
+        st.session_state["preview_lat"] = None
+        st.session_state["preview_lon"] = None
+        st.session_state["preview_text"] = None
+        st.session_state["confirmed_address"] = None
+        st.sidebar.info("Preview cleared.")
 
 # --------------------------------------------------
-# Finally: Render the Single Main Map
+# Finally: Render the Main Map
 # --------------------------------------------------
 build_and_show_map()
