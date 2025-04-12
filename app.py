@@ -55,12 +55,18 @@ def add_pub_to_db(name, latitude, longitude, pool_table, darts, commentary, fost
 
 @st.cache_data(ttl=60)
 def search_addresses(query):
-    """Return up to 5 (address, lat, lon) suggestions for a given query using Nominatim."""
+    """
+    Return up to 5 (address, lat, lon) suggestions for a given query using Nominatim,
+    but filter out any suggestions outside Greater London.
+    """
     geolocator = Nominatim(user_agent="geezer_pubs")
     results = geolocator.geocode(query, exactly_one=False, limit=5)
+    london_results = []
     if results:
-        return [(r.address, r.latitude, r.longitude) for r in results]
-    return []
+        for r in results:
+            if is_within_greater_london(r.latitude, r.longitude):
+                london_results.append((r.address, r.latitude, r.longitude))
+    return london_results
 
 def parse_pub_name_from_address(full_address):
     """
