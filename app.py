@@ -221,7 +221,7 @@ def build_and_show_map():
 # --------------------------------------------------
 # Sidebar: Step 1 - Search and Confirm Address
 # --------------------------------------------------
-st.sidebar.header("Step 1: Search and Confirm Address")
+st.sidebar.header("Submit a Geezery Pub")
 
 address_query = st.sidebar.text_input(
     "Search Address",
