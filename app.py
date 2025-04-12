@@ -6,7 +6,7 @@ from folium import CustomIcon
 from streamlit_folium import folium_static
 import os
 from geopy.geocoders import Nominatim
-from shapely.geometry import Point, Polygon  # New import for geospatial checks
+from shapely.geometry import Point, Polygon
 
 # --------------------------------------------------
 # Define the Greater London Polygon
@@ -90,25 +90,59 @@ def create_main_map(df, preview_data=None, center=None):
 
     m = folium.Map(location=center, zoom_start=11)
 
-    # Add markers for confirmed pubs
+    # Add markers for confirmed pubs with visually appealing popups.
     for _, row in df.iterrows():
         try:
             pint_price_val = float(row['pint_price'])
         except (ValueError, TypeError):
             pint_price_val = 0.0
 
-        popup_text = f"""
-        <b>{row['name']}</b><br>
-        Pool Table: {row['pool_table']}<br>
-        Darts: {row['darts']}<br>
-        Commentary: {row['commentary']}<br>
-        Fosters/Carling: {row['fosters_carling']}<br>
-        Price of a Pint: {pint_price_val:.2f}<br>
-        Lock-ins: {row['lock_ins']}
+        popup_html = f"""
+        <table style="border: none; border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size:14px;">
+            <thead>
+                <tr>
+                    <th colspan="2" style="text-align:left; background-color: #f8f9fa; padding: 5px; border-bottom: 1px solid #ccc;">
+                        {row['name']}
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding: 5px;"><strong>Pool Table:</strong></td>
+                    <td style="padding: 5px;">{row['pool_table']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 5px;"><strong>Darts:</strong></td>
+                    <td style="padding: 5px;">{row['darts']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 5px;"><strong>Commentary:</strong></td>
+                    <td style="padding: 5px;">{row['commentary']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 5px;"><strong>Fosters/Carling:</strong></td>
+                    <td style="padding: 5px;">{row['fosters_carling']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 5px;"><strong>Pint Price:</strong></td>
+                    <td style="padding: 5px;">£{pint_price_val:.2f}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 5px;"><strong>Lock-ins:</strong></td>
+                    <td style="padding: 5px;">{row['lock_ins']}</td>
+                </tr>
+            </tbody>
+        </table>
         """
+        # Wrap the table in an IFrame to control its size.
+        popup = folium.Popup(
+            folium.IFrame(html=popup_html, width=250, height=200),
+            max_width=300
+        )
+        
         folium.Marker(
             location=[row["latitude"], row["longitude"]],
-            popup=popup_text,
+            popup=popup,
             icon=get_main_icon(),
         ).add_to(m)
 
@@ -181,7 +215,7 @@ def build_and_show_map():
 # --------------------------------------------------
 # Sidebar: Step 1 - Search and Confirm Address
 # --------------------------------------------------
-st.sidebar.header("Submit a pub here:")
+st.sidebar.header("Step 1: Search and Confirm Address")
 
 address_query = st.sidebar.text_input(
     "Search Address",
@@ -207,9 +241,9 @@ if address_query:
 
 if st.sidebar.button("Confirm Address"):
     if st.session_state.get("preview_text"):
-        # Optionally, you could check here as well whether the address is within Greater London.
+        # Optionally, check here whether the address is within Greater London.
         if is_within_greater_london(st.session_state["preview_lat"], st.session_state["preview_lon"]):
-            # Save the suggested pub name as the "confirmed address" (which is actually just a pub name)
+            # Save the suggested pub name as the "confirmed address"
             st.session_state["confirmed_address"] = st.session_state["suggested_pub_name"]
             st.sidebar.success(f"Address confirmed for: {st.session_state['confirmed_address']}")
         else:
@@ -273,7 +307,7 @@ if st.session_state.get("confirmed_address"):
             st.session_state["suggested_pub_name"] = None
             st.session_state["confirmed_address"] = None
             st.session_state["df_pubs"] = load_data()
-            st.rerun()  # Use experimental_rerun to refresh the app
+            st.rerun()  # Refresh the app
     
     if st.sidebar.button("Clear Preview"):
         st.session_state["preview_lat"] = None
