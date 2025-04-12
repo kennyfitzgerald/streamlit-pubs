@@ -167,7 +167,7 @@ def create_main_map(df, preview_data=None, center=None):
 # Streamlit App Setup & Session State Initialization
 # --------------------------------------------------
 st.set_page_config(page_title="Geezer Pubs of London 🍻", page_icon="🍻", layout="wide")
-st.title("Actual Pubs")
+st.title("Geezer Pubs")
 st.write("YOU'RE JUST A BAR IN DISGUISE, BAR IN DISGUIIIISEEE")
 
 # Initialize session state variables
