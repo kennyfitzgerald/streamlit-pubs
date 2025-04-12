@@ -6,6 +6,27 @@ from folium import CustomIcon
 from streamlit_folium import folium_static
 import os
 from geopy.geocoders import Nominatim
+from shapely.geometry import Point, Polygon  # New import for geospatial checks
+
+# --------------------------------------------------
+# Define the Greater London Polygon
+# --------------------------------------------------
+# This is a rough rectangular approximation of Greater London's boundaries.
+# For more accurate results, replace with the exact polygon coordinates.
+GREATER_LONDON_POLYGON = Polygon([
+    (-0.5103, 51.2868),  # Southwest corner
+    (0.3340, 51.2868),   # Southeast corner
+    (0.3340, 51.6919),   # Northeast corner
+    (-0.5103, 51.6919)   # Northwest corner
+])
+
+def is_within_greater_london(lat, lon):
+    """
+    Check if a given latitude and longitude are within the Greater London polygon.
+    Note: shapely uses (longitude, latitude) as (x,y).
+    """
+    point = Point(lon, lat)
+    return GREATER_LONDON_POLYGON.contains(point)
 
 # --------------------------------------------------
 # Database & Geocoding Functions
@@ -160,7 +181,7 @@ def build_and_show_map():
 # --------------------------------------------------
 # Sidebar: Step 1 - Search and Confirm Address
 # --------------------------------------------------
-st.sidebar.header("Step 1: Search and Confirm Address")
+st.sidebar.header("Submit a pub here:")
 
 address_query = st.sidebar.text_input(
     "Search Address",
@@ -186,9 +207,13 @@ if address_query:
 
 if st.sidebar.button("Confirm Address"):
     if st.session_state.get("preview_text"):
-        # Save the suggested pub name as the "confirmed address" (which is actually just a pub name)
-        st.session_state["confirmed_address"] = st.session_state["suggested_pub_name"]
-        st.sidebar.success(f"Address confirmed for: {st.session_state['confirmed_address']}")
+        # Optionally, you could check here as well whether the address is within Greater London.
+        if is_within_greater_london(st.session_state["preview_lat"], st.session_state["preview_lon"]):
+            # Save the suggested pub name as the "confirmed address" (which is actually just a pub name)
+            st.session_state["confirmed_address"] = st.session_state["suggested_pub_name"]
+            st.sidebar.success(f"Address confirmed for: {st.session_state['confirmed_address']}")
+        else:
+            st.sidebar.error("The selected address is outside Greater London. Please try a different address.")
     else:
         st.sidebar.error("Please select an address before confirming.")
 
@@ -219,10 +244,12 @@ if st.session_state.get("confirmed_address"):
     lock_ins = st.sidebar.radio("Lock-ins", ("Yes", "No"), index=1)
     
     if st.sidebar.button("Add Pub"):
-        # We rely on st.session_state["preview_lat"] and st.session_state["preview_lon"] for coordinates.
-        if (st.session_state["preview_lat"] is not None 
-            and st.session_state["preview_lon"] is not None 
-            and pub_name):
+        # Before adding a pub, ensure that the selected location is within Greater London
+        if st.session_state["preview_lat"] is None or st.session_state["preview_lon"] is None or not pub_name:
+            st.sidebar.error("Error adding pub. Please ensure all necessary info is provided.")
+        elif not is_within_greater_london(st.session_state["preview_lat"], st.session_state["preview_lon"]):
+            st.sidebar.error("The selected address is outside Greater London. Pub not added.")
+        else:
             st.session_state["new_pub_center"] = [
                 st.session_state["preview_lat"], 
                 st.session_state["preview_lon"]
@@ -246,9 +273,7 @@ if st.session_state.get("confirmed_address"):
             st.session_state["suggested_pub_name"] = None
             st.session_state["confirmed_address"] = None
             st.session_state["df_pubs"] = load_data()
-            st.rerun()
-        else:
-            st.sidebar.error("Error adding pub. Please ensure all necessary info is provided.")
+            st.rerun()  # Use experimental_rerun to refresh the app
     
     if st.sidebar.button("Clear Preview"):
         st.session_state["preview_lat"] = None
