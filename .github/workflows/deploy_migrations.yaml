@@ -31,7 +31,6 @@ jobs:
         with:
           version: latest
 
-      # Step 4: Run the Python deploy script
       - name: Run deployment script
         env:
           user: ${{ secrets.DB_USER }}
