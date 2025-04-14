@@ -26,23 +26,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      # Diagnostic step (optional)
-      - name: Check DNS resolution for toolkit.supabase.com
-        run: nslookup toolkit.supabase.com
-
-      - name: Download Supabase CLI
-        run: |
-          curl -LO https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz
-          tar -xzf supabase_linux_amd64.tar.gz
-          chmod +x supabase
-          mkdir -p $HOME/.local/bin
-          mv supabase $HOME/.local/bin/
-
-      - name: Add local Supabase CLI to PATH
-        run: echo "${HOME}/.local/bin" >> $GITHUB_PATH
-
-      - name: Verify local Supabase CLI
-        run: supabase --version
+          
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
 
       # Step 4: Run the Python deploy script
       - name: Run deployment script
