@@ -27,6 +27,17 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+      # Install Supabase CLI
+      - name: Install Supabase CLI
+        run: |
+          curl -fsSL https://toolkit.supabase.com/install | sh
+          # Add the Supabase CLI directory to the PATH
+          echo "${HOME}/.local/bin" >> $GITHUB_PATH
+          
+      # Verify that the Supabase CLI is installed
+      - name: Check Supabase Version
+        run: supabase --version
+
       # Step 4: Run the Python deploy script
       - name: Run deployment script
         env:
