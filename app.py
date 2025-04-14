@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
 import folium
 from folium import CustomIcon
 from streamlit_folium import folium_static
