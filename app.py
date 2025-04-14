@@ -7,6 +7,7 @@ from streamlit_folium import folium_static
 import os
 from geopy.geocoders import Nominatim
 from shapely.geometry import Point, Polygon
+from supabase import create_client, Client
 
 # --------------------------------------------------
 # Define the Greater London Polygon
@@ -31,28 +32,51 @@ def is_within_greater_london(lat, lon):
 # --------------------------------------------------
 # Database & Geocoding Functions
 # --------------------------------------------------
+
+# Initialize the Supabase client (ideally done once and reused)
+
+SUPABASE_URL = st.secrets.get("SUPABASE_URL")
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
 def load_data():
-    """Fetch all pubs from geezers.db into a DataFrame."""
-    conn = sqlite3.connect('geezers.db')
-    query = """
-    SELECT name, latitude, longitude, pool_table, darts, commentary, fosters_carling, pint_price, lock_ins 
-    FROM pubs
+    """Fetch all pubs from supabase pubs table into a DataFrame.
     """
-    df = pd.read_sql(query, conn)
-    conn.close()
+
+    response = (    
+        supabase.table("pubs")
+        .select("*")
+        .execute()
+    )
+    # The response.data is already a list of dictionaries
+    data_list = response.data
+    
+    # Create a DataFrame
+    df = pd.DataFrame(data_list)    
+    
     return df
 
 def add_pub_to_db(name, latitude, longitude, pool_table, darts, commentary, fosters_carling, pint_price, lock_ins):
-    """Insert a new pub record into the database."""
-    conn = sqlite3.connect('geezers.db')
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO pubs (name, latitude, longitude, pool_table, darts, commentary, fosters_carling, pint_price, lock_ins) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (name, latitude, longitude, pool_table, darts, commentary, fosters_carling, pint_price, lock_ins)
-    )
-    conn.commit()
-    conn.close()
-
+    """
+    Insert a new pub record into the 'pubs' table using Supabase API.
+    """
+    # Create a dictionary for the new record
+    new_pub = {
+        "name": name,
+        "latitude": latitude,
+        "longitude": longitude,
+        "pool_table": pool_table,
+        "darts": darts,
+        "commentary": commentary,
+        "fosters_carling": fosters_carling,
+        "pint_price": pint_price,
+        "lock_ins": lock_ins
+    }
+    
+    # Insert the new record into the 'pubs' table
+    response = supabase.table("pubs").insert(new_pub).execute()
+            
 @st.cache_data(ttl=60)
 def search_addresses(query):
     """
@@ -266,14 +290,14 @@ if st.session_state.get("confirmed_address"):
         "Pub Name (edit if necessary)",
         value=st.session_state["confirmed_address"]
     )
-    pool_table = st.sidebar.radio("Pool Table", ("Yes", "No"), index=1)
-    darts = st.sidebar.radio("Darts", ("Yes", "No"), index=1)
+    pool_table = st.sidebar.radio("Pool Table", ("Yes", "No", "Dunno tbh"), index=1)
+    darts = st.sidebar.radio("Darts", ("Yes", "No", "Dunno tbh"), index=1)
     commentary = st.sidebar.radio(
         "Commentary",
         ("They get it", "Occasional", "Muted with Shit music on"),
         index=0
     )
-    fosters_carling = st.sidebar.radio("Fosters / Carling", ("Yes", "No"), index=1)
+    fosters_carling = st.sidebar.radio("Fosters / Carling", ("Yes", "No", "Dunno tbh"), index=1)
     pint_price = st.sidebar.number_input(
         "Price of a Pint",
         value=5.00,
@@ -281,7 +305,7 @@ if st.session_state.get("confirmed_address"):
         step=0.01,
         format="%.2f"
     )
-    lock_ins = st.sidebar.radio("Lock-ins", ("Yes", "No"), index=1)
+    lock_ins = st.sidebar.radio("Lock-ins", ("Yes", "No", "Dunno tbh"), index=1)
     
     if st.sidebar.button("Add Pub"):
         # Before adding a pub, ensure that the selected location is within Greater London
