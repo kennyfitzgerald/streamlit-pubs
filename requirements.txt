@@ -1,7 +1,8 @@
-streamlit
-sqlalchemy
-pandas
-folium
-streamlit-folium
-geopy
-shapely
+streamlit==1.44.1
+pandas==2.2.3
+folium==0.19.5
+streamlit-folium==0.24.1
+geopy==2.4.1
+shapely==2.1.0
+supabase==2.15.0
+dotenv==0.9.9
